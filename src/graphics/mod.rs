@@ -1,1 +1,3 @@
-mod graphics;
+pub mod graphics;
+
+pub use graphics::GraphicsState;

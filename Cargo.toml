@@ -5,3 +5,8 @@ edition = "2024"
 
 [dependencies]
 wgpu = "30.0.0"
+winit = "0.30.13"
+env_logger = "0.11.11"
+pollster = "1.0.1"
+
+rapier2d = "0.36.1"
