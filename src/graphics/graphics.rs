@@ -1,12 +1,15 @@
 use std::{borrow::Cow, sync::Arc};
 
-use wgpu::RenderPipeline;
+use rapier2d::pipeline::{DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, PhysicsWorld};
+use wgpu::{RenderPipeline, util::DeviceExt};
 use winit::{
     event_loop::OwnedDisplayHandle,
     window::Window,
 };
 
-pub struct GraphicsState {
+use crate::{State, graphics::{LineCollector, Point, camera::Camera}};
+
+pub struct Renderer {
     instance: wgpu::Instance,
     window: Arc<Window>,
     device: wgpu::Device,
@@ -15,10 +18,17 @@ pub struct GraphicsState {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
     render_pipeline: RenderPipeline,
+
+    camera: Camera,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+
+    debug_renderer_backend: LineCollector,
+    debug_renderer: DebugRenderPipeline,
 }
 
-impl GraphicsState {
-    pub async fn new(display: OwnedDisplayHandle, window: Arc<Window>) -> GraphicsState {
+impl Renderer {
+    pub async fn new(display: OwnedDisplayHandle, window: Arc<Window>) -> Renderer {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
             Box::new(display),
         ));
@@ -38,6 +48,22 @@ impl GraphicsState {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("camera_bind_group_layout"),
+        });
+
         // Load the shaders from disk
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -46,7 +72,9 @@ impl GraphicsState {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[],
+            bind_group_layouts: &[
+                Some(&camera_bind_group_layout)
+            ],
             immediate_size: 0,
         });
 
@@ -59,7 +87,9 @@ impl GraphicsState {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                buffers: &[
+                    Some(Point::desc())
+                ],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -68,14 +98,51 @@ impl GraphicsState {
                 compilation_options: Default::default(),
                 targets: &[Some(swapchain_format.into())],
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            // primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList, // or LineStrip
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None, // Often disabled for lines
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview_mask: None,
             cache: None,
         });
 
-        let state = GraphicsState {
+        let camera = Camera::default();
+        let aspect_ratio = size.width as f32 / size.height as f32;
+        let matrix = camera.to_matrix(aspect_ratio);
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[matrix.to_cols_array_2d()]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("camera_bind_group"),
+        });
+
+        let debug_renderer = DebugRenderPipeline::new(
+            DebugRenderStyle::default(),
+            DebugRenderMode::COLLIDER_SHAPES | DebugRenderMode::CONTACTS,
+        );
+        let debug_renderer_backend = LineCollector { lines: vec![] };
+
+        let state = Renderer {
             instance,
             window,
             device,
@@ -84,6 +151,13 @@ impl GraphicsState {
             surface,
             surface_format,
             render_pipeline,
+
+            camera,
+            camera_buffer,
+            camera_bind_group,
+
+            debug_renderer,
+            debug_renderer_backend
         };
 
         // Configure surface for the first time
@@ -119,7 +193,7 @@ impl GraphicsState {
         self.configure_surface();
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, world: &PhysicsWorld) {
         // Create texture view.
         // NOTE: We must handle Timeout because the surface may be unavailable
         // (e.g., when the window is occluded on macOS).
@@ -183,7 +257,32 @@ impl GraphicsState {
             1.0
         );
         renderpass.set_pipeline(&self.render_pipeline);
-        renderpass.draw(0..3, 0..1);
+        // renderpass.draw(0..3, 0..1);
+
+        self.debug_renderer_backend.lines.clear();
+        self.debug_renderer.render(
+            &mut self.debug_renderer_backend,
+            &world.bodies,
+            &world.colliders,
+            &world.impulse_joints,
+            &world.multibody_joints,
+            &world.narrow_phase,
+            &world.soft_bodies
+        );
+
+        // println!("{:#?}", self.debug_renderer_backend.lines);
+
+        let vertex_buffer = self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&self.debug_renderer_backend.lines),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        renderpass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        renderpass.set_bind_group(0, Some(&self.camera_bind_group), &[]);
+        renderpass.draw(0..self.debug_renderer_backend.lines.len() as u32, 0..1);
 
         // End the renderpass.
         drop(renderpass);

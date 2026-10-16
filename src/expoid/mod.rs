@@ -1,6 +1,7 @@
 use wgpu::Queue;
 
 mod expie;
+mod format;
 
 pub trait Renderable {
     fn render(queue: Queue);

@@ -1,7 +1,7 @@
 mod graphics;
 mod expoid;
 
-use crate::graphics::GraphicsState;
+use crate::graphics::{LineCollector, Renderer};
 
 use std::sync::Arc;
 
@@ -11,28 +11,44 @@ use winit::{
 };
 
 struct App {
-    graphics_state: Option<GraphicsState>,
-    physics_world: PhysicsWorld
+    renderer: Option<Renderer>,
+    physics_world: PhysicsWorld,
+    state: State,
+}
+
+pub struct State {
+
 }
 
 impl App {
     pub fn new() -> App {
         let mut physics_world = PhysicsWorld::new();
 
-        let shape = ColliderBuilder::voxels_from_points(
-            Vector::new(1.0, 1.0),
-            &[
-                Vector::new(0.0, 0.0),
-                Vector::new(1.0, 1.0),
-                Vector::new(-1.0, 1.0),
-            ],
-        );
+        let rigid_body = RigidBodyBuilder::new(RigidBodyType::Fixed)
+            .pose(Pose::new(Vector::new(0.0, 0.0), 0.0))
+            .can_sleep(true)
+            .ccd_enabled(false)
+            .build();
 
-        physics_world.insert_collider(shape, None);
+        // let shape = ColliderBuilder::voxels_from_points(
+        //     Vector::new(0.1, 0.1),
+        //     &[
+        //         Vector::new(0.0, 0.0),
+        //     ],
+        // );
+
+        let shape = ColliderBuilder::cuboid(0.1, 0.1);
+
+        let rigid_body_handle = physics_world.insert_body(rigid_body);
+        physics_world.insert_collider(shape, Some(rigid_body_handle));
+
+        let state = State {
+        };
 
         App {
-            graphics_state: None,
+            renderer: None,
             physics_world,
+            state,
         }
     }
 }
@@ -56,31 +72,53 @@ impl ApplicationHandler for App {
 
         window.set_cursor_hittest(false).unwrap();
 
-        let state = pollster::block_on(GraphicsState::new(
+        let renderer = pollster::block_on(Renderer::new(
             event_loop.owned_display_handle(),
             window.clone(),
         ));
-        self.graphics_state = Some(state);
+        self.renderer = Some(renderer);
+
+        // Builder for a body with a status specified by an enum.
+        let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
+            .pose(Pose::new(Vector::new(0.05, 2.0), 0.4))
+            // .linvel(Vector::new(1.0, 2.0))
+            .angvel(2.0)
+            .can_sleep(false)
+            .ccd_enabled(false)
+            .sleeping(false)
+            .build();
+
+        let collider = ColliderBuilder::new(SharedShape::ball(0.1))
+            .density(800.0)
+            .friction(1.0)
+            // .restitution(0.9)
+            // .sensor(true)
+            .build();
+
+        let rigid_body_handle = self.physics_world.insert_body(rigid_body);
+        self.physics_world.insert_collider(collider, Some(rigid_body_handle));
 
         window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let state = self.graphics_state.as_mut().unwrap();
+        let renderer = self.renderer.as_mut().unwrap();
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                state.render();
+                self.physics_world.step();
+                renderer.render(&self.physics_world);
+
                 // Emits a new redraw requested event.
-                state.get_window().request_redraw();
+                renderer.get_window().request_redraw();
             }
             WindowEvent::Resized(size) => {
                 // Reconfigures the size of the surface. We do not re-render
                 // here as this event is always followed up by redraw request.
-                state.resize(size);
+                renderer.resize(size);
             }
             _ => (),
         }

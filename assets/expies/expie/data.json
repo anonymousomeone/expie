@@ -1,0 +1,41 @@
+{
+    "name": "Experiment",
+
+    "weight": [49, 51],
+    "height": [130, 160],
+    "blood": 5000,
+
+    "eyes": {
+        "normal": ["textures/experimentEyeOpen.png", "textures/experimentEyeClosed.png", "textures/experimentEyeLookBack.png"],
+        "sad":    ["textures/experimentEyeSad.png", "textures/experimentEyeClosed.png", "textures/experimentEyeSadBack.png"],
+        "sleep":  ["textures/experimentEyeClosed.png", "textures/experimentEyeClosed.png", "textures/experimentEyeClosed.png"],
+        "tired":  ["textures/experimentEyeHalfClosed.png", "textures/experimentEyeClosed.png", "textures/experimentEyeClosed.png"],
+        "scared": ["textures/experimentEyeScared.png", "textures/experimentEyeClosed.png", "textures/experimentEyeHalfClosedBack.png"],
+        "panic":  ["textures/experimentEyePanic.png", "textures/experimentEyePanic.png", "textures/experimentEyePanic.png"],
+        "happy":  ["textures/experimentEyeHappy.png", "textures/experimentEyeHappy.png", "textures/experimentEyeHappy.png"],
+        "gone": "textures/experimentEyeGone.png",
+        "gone_healed": "textures/experimentEyeGoneHealed.png"
+    },
+
+    "heads": {
+        "default": "textures/experimentHeadBack.png",
+        "open": "textures/experimentHeadBackMouth.png",
+        "opensmall": "textures/experimentHeadBackMouthMini.png",
+        "disfigured": ["textures/experimentHeadDisfigured2.png"]
+    },
+
+    "torso_upper": "textures/experimentDownTorso.png",
+    "torso_lower": "textures/experimentUpTorso.png",
+
+    "arm_upper": "textures/experimentUpArm.png",
+    "arm_lower": "textures/experimentDownArm.png",
+    "hand_front": "textures/experimentHandF.png",
+    "hand_back": "textures/experimentHandB.png",
+
+    "leg_thigh": "textures/experimentThigh.png",
+    "leg_crus": "textures/experimentCrus.png",
+    "leg_foot": "textures/experimentFoot.png",
+
+    "tail": "textures/experimentTail.png"
+}
+
