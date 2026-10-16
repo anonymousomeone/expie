@@ -20,8 +20,6 @@ pub struct Renderer {
     render_pipeline: RenderPipeline,
 
     camera: Camera,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
 
     debug_renderer_backend: LineCollector,
     debug_renderer: DebugRenderPipeline,
@@ -48,32 +46,17 @@ impl Renderer {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
-
         // Load the shaders from disk
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
         });
-
+        
+        let camera = Camera::new(&device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[
-                Some(&camera_bind_group_layout)
+                Some(&camera.bind_group_layout)
             ],
             immediate_size: 0,
         });
@@ -114,27 +97,6 @@ impl Renderer {
             cache: None,
         });
 
-        let camera = Camera::default();
-        let aspect_ratio = size.width as f32 / size.height as f32;
-        let matrix = camera.to_matrix(aspect_ratio);
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[matrix.to_cols_array_2d()]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("camera_bind_group"),
-        });
 
         let debug_renderer = DebugRenderPipeline::new(
             DebugRenderStyle::default(),
@@ -153,8 +115,6 @@ impl Renderer {
             render_pipeline,
 
             camera,
-            camera_buffer,
-            camera_bind_group,
 
             debug_renderer,
             debug_renderer_backend
@@ -280,8 +240,16 @@ impl Renderer {
             }
         );
 
+        let aspect_ratio: f32 = self.size.width as f32 / self.size.height as f32;
+        let matrix = self.camera.to_matrix(aspect_ratio).to_cols_array_2d();
+        self.queue.write_buffer(
+            &self.camera.buffer, 
+            0, 
+            bytemuck::bytes_of(&matrix)
+        );
+
         renderpass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        renderpass.set_bind_group(0, Some(&self.camera_bind_group), &[]);
+        renderpass.set_bind_group(0, Some(&self.camera.bind_group), &[]);
         renderpass.draw(0..self.debug_renderer_backend.lines.len() as u32, 0..1);
 
         // End the renderpass.
