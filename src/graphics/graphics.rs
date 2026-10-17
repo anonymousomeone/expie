@@ -1,13 +1,11 @@
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
-use rapier2d::pipeline::{DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, PhysicsWorld};
-use wgpu::{RenderPipeline, util::DeviceExt};
 use winit::{
     event_loop::OwnedDisplayHandle,
     window::Window,
 };
 
-use crate::{State, graphics::{LineCollector, Point, camera::Camera}};
+use crate::{State, graphics::passes::{Pass, debug_pass::DebugPass}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -17,12 +15,8 @@ pub struct Renderer {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
-    render_pipeline: RenderPipeline,
 
-    camera: Camera,
-
-    debug_renderer_backend: LineCollector,
-    debug_renderer: DebugRenderPipeline,
+    passes: Vec<Box<dyn Pass>>,
 }
 
 impl Renderer {
@@ -46,63 +40,19 @@ impl Renderer {
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
-        // Load the shaders from disk
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-        });
-        
-        let camera = Camera::new(&device);
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[
-                Some(&camera.bind_group_layout)
-            ],
-            immediate_size: 0,
-        });
-
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[
-                    Some(Point::desc())
-                ],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(swapchain_format.into())],
-            }),
-            // primitive: wgpu::PrimitiveState::default(),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList, // or LineStrip
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None, // Often disabled for lines
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        });
+        let mut passes: Vec<Box<dyn Pass>> = Vec::new();
 
-
-        let debug_renderer = DebugRenderPipeline::new(
-            DebugRenderStyle::default(),
-            DebugRenderMode::COLLIDER_SHAPES | DebugRenderMode::CONTACTS,
+        let debug_pass = DebugPass::new(
+            device.clone(),
+            queue.clone(),
+            swapchain_format.into(),
+            size.clone(),
         );
-        let debug_renderer_backend = LineCollector { lines: vec![] };
+
+        passes.push(Box::new(debug_pass));
 
         let state = Renderer {
             instance,
@@ -112,12 +62,8 @@ impl Renderer {
             size,
             surface,
             surface_format,
-            render_pipeline,
 
-            camera,
-
-            debug_renderer,
-            debug_renderer_backend
+            passes,
         };
 
         // Configure surface for the first time
@@ -153,7 +99,7 @@ impl Renderer {
         self.configure_surface();
     }
 
-    pub fn render(&mut self, world: &PhysicsWorld) {
+    pub fn render(&mut self, state: &mut State) {
         // Create texture view.
         // NOTE: We must handle Timeout because the surface may be unavailable
         // (e.g., when the window is occluded on macOS).
@@ -187,7 +133,7 @@ impl Renderer {
                 ..Default::default()
             });
 
-            let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut encoder = self.device.create_command_encoder(&Default::default());
 
         // Create the renderpass which will clear the screen.
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -216,41 +162,10 @@ impl Renderer {
             0.0, 
             1.0
         );
-        renderpass.set_pipeline(&self.render_pipeline);
-        // renderpass.draw(0..3, 0..1);
 
-        self.debug_renderer_backend.lines.clear();
-        self.debug_renderer.render(
-            &mut self.debug_renderer_backend,
-            &world.bodies,
-            &world.colliders,
-            &world.impulse_joints,
-            &world.multibody_joints,
-            &world.narrow_phase,
-            &world.soft_bodies
-        );
-
-        // println!("{:#?}", self.debug_renderer_backend.lines);
-
-        let vertex_buffer = self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&self.debug_renderer_backend.lines),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        );
-
-        let aspect_ratio: f32 = self.size.width as f32 / self.size.height as f32;
-        let matrix = self.camera.to_matrix(aspect_ratio).to_cols_array_2d();
-        self.queue.write_buffer(
-            &self.camera.buffer, 
-            0, 
-            bytemuck::bytes_of(&matrix)
-        );
-
-        renderpass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        renderpass.set_bind_group(0, Some(&self.camera.bind_group), &[]);
-        renderpass.draw(0..self.debug_renderer_backend.lines.len() as u32, 0..1);
+        for pass in &mut self.passes {
+            pass.render(&mut renderpass, state);
+        }
 
         // End the renderpass.
         drop(renderpass);

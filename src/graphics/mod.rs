@@ -1,5 +1,6 @@
 pub mod graphics;
 pub mod camera;
+pub mod passes;
 
 use bytemuck::{Pod, Zeroable};
 pub use graphics::Renderer;

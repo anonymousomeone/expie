@@ -12,12 +12,11 @@ use winit::{
 
 struct App {
     renderer: Option<Renderer>,
-    physics_world: PhysicsWorld,
     state: State,
 }
 
 pub struct State {
-
+    physics_world: PhysicsWorld,
 }
 
 impl App {
@@ -43,11 +42,11 @@ impl App {
         physics_world.insert_collider(shape, Some(rigid_body_handle));
 
         let state = State {
+            physics_world,
         };
 
         App {
             renderer: None,
-            physics_world,
             state,
         }
     }
@@ -95,8 +94,8 @@ impl ApplicationHandler for App {
             // .sensor(true)
             .build();
 
-        let rigid_body_handle = self.physics_world.insert_body(rigid_body);
-        self.physics_world.insert_collider(collider, Some(rigid_body_handle));
+        let rigid_body_handle = self.state.physics_world.insert_body(rigid_body);
+        self.state.physics_world.insert_collider(collider, Some(rigid_body_handle));
 
         window.request_redraw();
     }
@@ -109,8 +108,8 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                self.physics_world.step();
-                renderer.render(&self.physics_world);
+                self.state.physics_world.step();
+                renderer.render(&mut self.state);
 
                 // Emits a new redraw requested event.
                 renderer.get_window().request_redraw();
