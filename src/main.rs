@@ -1,13 +1,13 @@
 mod graphics;
 mod expoid;
 
-use crate::graphics::{LineCollector, Renderer};
+use crate::graphics::Renderer;
 
 use std::sync::Arc;
 
 use rapier2d::prelude::*;
 use winit::{
-    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Fullscreen, WindowAttributes, WindowId, WindowLevel},
+    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{WindowAttributes, WindowId, WindowLevel},
 };
 
 struct App {

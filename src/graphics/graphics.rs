@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use wgpu::Features;
 use winit::{
     event_loop::OwnedDisplayHandle,
     window::Window,
 };
 
-use crate::{State, graphics::passes::{Pass, debug_pass::DebugPass}};
+use crate::{State, graphics::passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -29,7 +30,10 @@ impl Renderer {
             .await
             .unwrap();
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: Features::IMMEDIATES,
+                ..Default::default()
+            })
             .await
             .unwrap();
 
@@ -45,6 +49,13 @@ impl Renderer {
 
         let mut passes: Vec<Box<dyn Pass>> = Vec::new();
 
+        let main_pass = MainPass::new(
+            device.clone(),
+            queue.clone(),
+            swapchain_format.into(),
+            size.clone()
+        );
+
         let debug_pass = DebugPass::new(
             device.clone(),
             queue.clone(),
@@ -52,6 +63,7 @@ impl Renderer {
             size.clone(),
         );
 
+        passes.push(Box::new(main_pass));
         passes.push(Box::new(debug_pass));
 
         let state = Renderer {
