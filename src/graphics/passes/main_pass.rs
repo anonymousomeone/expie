@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 
+use glam::{Mat3, Mat4, Quat, Vec2, Vec3};
 use image::GenericImageView;
 use wgpu::util::DeviceExt;
 
 use crate::State;
-use crate::graphics::{Renderer, Vertex, util};
+use crate::graphics::{Vertex, util};
 use crate::graphics::camera::Camera;
 use crate::graphics::passes::Pass;
 
@@ -26,7 +27,9 @@ pub struct MainPass {
     camera: Camera,
 
     vertex_buffer: wgpu::Buffer,
-    texture_bind_group: wgpu::BindGroup
+    texture_bind_group: wgpu::BindGroup,
+    model_buffer: wgpu::Buffer,
+    model_bind_group: wgpu::BindGroup,
 }
 
 impl MainPass {
@@ -60,6 +63,43 @@ impl MainPass {
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
+
+        let model_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("model_bind_group_layout"),
+        });
+
+        let model_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Model Buffer"),
+                contents: bytemuck::cast_slice(&[Mat4::IDENTITY.to_cols_array_2d()]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let model_bind_group = device.create_bind_group(
+        &wgpu::BindGroupDescriptor {
+                layout: &model_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: model_buffer.as_entire_binding(),
+                    },
+                ],
+                label: Some("model_bind_group"),
+            }
+        );
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -113,6 +153,7 @@ impl MainPass {
             label: None,
             bind_group_layouts: &[
                 Some(&camera.bind_group_layout),
+                Some(&model_bind_group_layout),
                 Some(&texture_bind_group_layout),
             ],
             immediate_size: 0,
@@ -167,6 +208,8 @@ impl MainPass {
 
             vertex_buffer,
             texture_bind_group,
+            model_buffer,
+            model_bind_group,
         }
 
     }
@@ -175,6 +218,7 @@ impl MainPass {
 impl Pass for MainPass {
     fn render(&mut self, renderpass: &mut wgpu::RenderPass, state: &mut State) {
         renderpass.set_pipeline(&self.render_pipeline);
+
         // renderpass.draw(0..3, 0..1);
         
         // println!("{:#?}", self.debug_renderer_backend.lines);
@@ -187,9 +231,21 @@ impl Pass for MainPass {
             bytemuck::bytes_of(&matrix)
         );
         
+        let matrix = Mat4::from_scale_rotation_translation(
+            Vec3::new(0.2, 0.2, 0.0),
+            Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0)
+        ).to_cols_array_2d();
+        self.queue.write_buffer(
+            &self.model_buffer, 
+            0, 
+            bytemuck::bytes_of(&matrix)
+        );
+
         renderpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         renderpass.set_bind_group(0, Some(&self.camera.bind_group), &[]);
-        renderpass.set_bind_group(1, &self.texture_bind_group, &[]);
+        renderpass.set_bind_group(1, Some(&self.model_bind_group), &[]);
+        renderpass.set_bind_group(2, &self.texture_bind_group, &[]);
         renderpass.draw(0..VERTICES.len() as u32, 0..1);
     }
 }

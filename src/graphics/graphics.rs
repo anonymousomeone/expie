@@ -31,7 +31,7 @@ impl Renderer {
             .unwrap();
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                required_features: Features::IMMEDIATES,
+                // required_features: Features::IMMEDIATES,
                 ..Default::default()
             })
             .await
