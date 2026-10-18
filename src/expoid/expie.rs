@@ -1,6 +1,8 @@
 use rapier2d::prelude::*;
 
-use crate::expoid::{Renderable, Transform};
+use crate::State;
+use crate::expoid::Transform;
+use crate::graphics::Renderable;
 
 pub struct Expie {
     pub limbs: Vec<Limb>,
@@ -20,15 +22,21 @@ impl Expie {
 }
 
 impl Renderable for Expie {
-    fn render(queue: wgpu::Queue) {
+    fn render(&self,
+        queue: &wgpu::Queue,
+        state: &State,
+        resources: &crate::graphics::resource::ResourceManager,
+        pass: &mut wgpu::RenderPass,
+        model_buffer: &wgpu::Buffer
+    ) {
         todo!()
     }
 
-    fn load_textures(queue: wgpu::Queue) {
+    fn load_textures(&self, queue: wgpu::Queue) {
         todo!()
     }
 
-    fn drop_textures(queue: wgpu::Queue) {
+    fn drop_textures(&self, queue: wgpu::Queue) {
         todo!()
     }
 }

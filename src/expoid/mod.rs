@@ -1,13 +1,6 @@
-use wgpu::Queue;
-
 mod expie;
 mod format;
-
-pub trait Renderable {
-    fn render(queue: Queue);
-    fn load_textures(queue: Queue);
-    fn drop_textures(queue: Queue);
-}
+pub mod container;
 
 pub struct Transform {
     x: f32,

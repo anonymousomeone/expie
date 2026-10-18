@@ -5,6 +5,7 @@ use image::GenericImageView;
 use wgpu::util::DeviceExt;
 
 use crate::State;
+use crate::graphics::resource::ResourceManager;
 use crate::graphics::{Vertex, util};
 use crate::graphics::camera::Camera;
 use crate::graphics::passes::Pass;
@@ -27,7 +28,6 @@ pub struct MainPass {
     camera: Camera,
 
     vertex_buffer: wgpu::Buffer,
-    texture_bind_group: wgpu::BindGroup,
     model_buffer: wgpu::Buffer,
     model_bind_group: wgpu::BindGroup,
 }
@@ -39,31 +39,6 @@ impl MainPass {
         target: wgpu::ColorTargetState,
         size: winit::dpi::PhysicalSize<u32>,
     ) -> MainPass {
-        let diffuse_bytes = include_bytes!("../../../assets/objects/textures/Containercrate.png");
-        let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-        let diffuse_rgba = diffuse_image.to_rgba8();
-
-        let dimensions = diffuse_image.dimensions();
-
-        let texture = util::load_texture(
-            &device,
-            &queue,
-            dimensions.0,
-            dimensions.1,
-            &diffuse_rgba
-        );
-
-        let diffuse_texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
-            ..Default::default()
-        });
-
         let model_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -124,23 +99,6 @@ impl MainPass {
             ],
             label: Some("texture_bind_group_layout"),
         });
-
-        let texture_bind_group = device.create_bind_group(
-        &wgpu::BindGroupDescriptor {
-                layout: &texture_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&diffuse_texture_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
-                    }
-                ],
-                label: Some("diffuse_bind_group"),
-            }
-        );
 
         // Load the shaders from disk
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -207,7 +165,6 @@ impl MainPass {
             size,
 
             vertex_buffer,
-            texture_bind_group,
             model_buffer,
             model_bind_group,
         }
@@ -216,7 +173,12 @@ impl MainPass {
 }
 
 impl Pass for MainPass {
-    fn render(&mut self, renderpass: &mut wgpu::RenderPass, state: &mut State) {
+    fn render(
+        &mut self,
+        resource_manager: &ResourceManager,
+        renderpass: &mut wgpu::RenderPass,
+        state: &mut State
+    ) {
         renderpass.set_pipeline(&self.render_pipeline);
 
         // renderpass.draw(0..3, 0..1);
@@ -230,22 +192,20 @@ impl Pass for MainPass {
             0, 
             bytemuck::bytes_of(&matrix)
         );
-        
-        let matrix = Mat4::from_scale_rotation_translation(
-            Vec3::new(0.2, 0.2, 0.0),
-            Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0)
-        ).to_cols_array_2d();
-        self.queue.write_buffer(
-            &self.model_buffer, 
-            0, 
-            bytemuck::bytes_of(&matrix)
-        );
 
         renderpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         renderpass.set_bind_group(0, Some(&self.camera.bind_group), &[]);
         renderpass.set_bind_group(1, Some(&self.model_bind_group), &[]);
-        renderpass.set_bind_group(2, &self.texture_bind_group, &[]);
-        renderpass.draw(0..VERTICES.len() as u32, 0..1);
+
+        for entity in &state.entities {
+            entity.render(
+                &self.queue,
+                state,
+                resource_manager,
+                renderpass,
+                &self.model_buffer
+            );
+        }
+
     }
 }

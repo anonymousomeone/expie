@@ -1,11 +1,29 @@
 pub mod graphics;
 pub mod camera;
 pub mod passes;
+pub mod resource;
 mod util;
 
 use bytemuck::{Pod, Zeroable};
 pub use graphics::Renderer;
 use rapier2d::{math::Vector, pipeline::{DebugColor, DebugRenderBackend, DebugRenderObject}};
+
+use wgpu::{Buffer, Queue, RenderPass};
+
+use crate::{State, graphics::resource::ResourceManager};
+
+pub trait Renderable {
+    fn render(&self,
+        queue: &Queue,
+        state: &State,
+        resources: &ResourceManager,
+        pass: &mut RenderPass,
+        model_buffer: &Buffer
+    );
+
+    fn load_textures(&self, queue: Queue);
+    fn drop_textures(&self, queue: Queue);
+}
 
 pub struct LineCollector {
     pub lines: Vec<Point>,

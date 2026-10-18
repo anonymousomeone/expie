@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use wgpu::Features;
 use winit::{
     event_loop::OwnedDisplayHandle,
     window::Window,
 };
 
-use crate::{State, graphics::passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}};
+use crate::{State, graphics::{passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -16,6 +15,7 @@ pub struct Renderer {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
+    pub resource_manager: ResourceManager,
 
     passes: Vec<Box<dyn Pass>>,
 }
@@ -31,7 +31,6 @@ impl Renderer {
             .unwrap();
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                // required_features: Features::IMMEDIATES,
                 ..Default::default()
             })
             .await
@@ -46,6 +45,8 @@ impl Renderer {
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
+
+        let resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
         let mut passes: Vec<Box<dyn Pass>> = Vec::new();
 
@@ -74,6 +75,7 @@ impl Renderer {
             size,
             surface,
             surface_format,
+            resource_manager,
 
             passes,
         };
@@ -176,7 +178,11 @@ impl Renderer {
         );
 
         for pass in &mut self.passes {
-            pass.render(&mut renderpass, state);
+            pass.render(
+                &self.resource_manager,
+                &mut renderpass, 
+                state
+            );
         }
 
         // End the renderpass.

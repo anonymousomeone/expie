@@ -4,6 +4,7 @@ use rapier2d::pipeline::{DebugRenderMode, DebugRenderPipeline, DebugRenderStyle}
 use wgpu::util::DeviceExt;
 
 use crate::State;
+use crate::graphics::resource::ResourceManager;
 use crate::graphics::{LineCollector, Point};
 use crate::graphics::camera::Camera;
 use crate::graphics::passes::Pass;
@@ -95,7 +96,12 @@ impl DebugPass {
 }
 
 impl Pass for DebugPass {
-    fn render(&mut self, renderpass: &mut wgpu::RenderPass, state: &mut State) {
+    fn render(
+        &mut self,
+        _resource_manager: &ResourceManager,
+        renderpass: &mut wgpu::RenderPass,
+        state: &mut State
+    ) {
         let world = &state.physics_world;
         renderpass.set_pipeline(&self.render_pipeline);
         // renderpass.draw(0..3, 0..1);

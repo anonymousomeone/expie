@@ -1,11 +1,12 @@
 mod graphics;
 mod expoid;
 
-use crate::graphics::Renderer;
+use crate::{expoid::container::Container, graphics::{Renderable, Renderer}};
 
 use std::sync::Arc;
 
 use rapier2d::prelude::*;
+use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages, TextureSampleType, TextureViewDimension};
 use winit::{
     application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{WindowAttributes, WindowId, WindowLevel},
 };
@@ -17,6 +18,7 @@ struct App {
 
 pub struct State {
     physics_world: PhysicsWorld,
+    entities: Vec<Box<dyn Renderable>>,
 }
 
 impl App {
@@ -43,6 +45,7 @@ impl App {
 
         let state = State {
             physics_world,
+            entities: Vec::new(),
         };
 
         App {
@@ -71,11 +74,10 @@ impl ApplicationHandler for App {
 
         window.set_cursor_hittest(false).unwrap();
 
-        let renderer = pollster::block_on(Renderer::new(
+        let mut renderer = pollster::block_on(Renderer::new(
             event_loop.owned_display_handle(),
             window.clone(),
         ));
-        self.renderer = Some(renderer);
 
         // Builder for a body with a status specified by an enum.
         let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
@@ -97,7 +99,58 @@ impl ApplicationHandler for App {
         let rigid_body_handle = self.state.physics_world.insert_body(rigid_body);
         self.state.physics_world.insert_collider(collider, Some(rigid_body_handle));
 
+        let resources = &mut renderer.resource_manager;
+        let crate_id = resources.load_texture_from_path("./assets/objects/textures/Containercrate.png");
+        let sampler = resources.new_sampler();
+
+        let layout_entries = vec![
+            BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Texture {
+                    sample_type: TextureSampleType::Float { filterable: true },
+                    view_dimension: TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ];
+        let layout = resources.new_layout(layout_entries, None);
+
+        let texture_view = resources.get_texture(crate_id).create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = resources.get_sampler(sampler);
+
+        let entries = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            }
+        ];
+        let bind_group = resources.new_bind_group(layout, entries, None);
+
+        let container_crate = Container::new(
+            &mut self.state.physics_world,
+            Vec2::new(0.0, 0.0),
+            Vec2::new(0.2, 0.2),
+            bind_group,
+            expoid::container::ContainerVariant::Container
+        );
+
+        self.state.entities.push(Box::new(container_crate));
+        
+
         window.request_redraw();
+        self.renderer = Some(renderer);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
