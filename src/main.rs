@@ -6,10 +6,11 @@ use crate::{expoid::container::Container, graphics::{Renderable, Renderer}};
 use std::sync::Arc;
 
 use egui::FullOutput;
+use image::GenericImageView;
 use rapier2d::prelude::*;
 use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages, TextureSampleType, TextureViewDimension};
 use winit::{
-    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{WindowAttributes, WindowId, WindowLevel},
+    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, platform::windows::IconExtWindows, window::{Icon, WindowAttributes, WindowId, WindowLevel},
 };
 
 struct App {
@@ -64,9 +65,15 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let image = image::load_from_memory(include_bytes!("../assets/logo.png")).unwrap();
+        let (width, height) = image.dimensions();
+
+        let icon = Icon::from_rgba(image.into_bytes(), width, height).unwrap();
         let attributes = WindowAttributes::default()
             .with_transparent(true)
             .with_decorations(false)
+            .with_title("Expie")
+            .with_window_icon(Some(icon))
             // .with_fullscreen(Some(Fullscreen::Borderless(None)))
             .with_inner_size(PhysicalSize::new(1920, 1081))
             .with_position(PhysicalPosition::new(0, 0))
