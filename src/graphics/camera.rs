@@ -49,7 +49,7 @@ impl Camera {
 
         Camera {
             position: Vec2::new(0.5, 0.5),
-            zoom: 1.0,
+            zoom: 0.25,
 
             buffer,
             bind_group,
@@ -73,4 +73,20 @@ impl Camera {
 
         return projection * translation;
     }
+}
+
+pub struct CameraController {
+    pub controller_type: ControllerType
+}
+
+impl CameraController {
+    pub fn new(controller_type: ControllerType) -> CameraController {
+        CameraController {
+            controller_type,
+        }
+    }
+}
+
+pub enum ControllerType {
+    Freecam,
 }

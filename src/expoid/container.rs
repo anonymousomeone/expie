@@ -1,4 +1,4 @@
-use crate::{State, graphics::{Renderable, resource::{BindGroupId, ResourceManager, TextureId}}};
+use crate::{State, graphics::{Renderable, resource::{BindGroupId, ResourceManager}}};
 use rapier2d::{glamx::{EulerRot, Mat4, Quat}, prelude::*};
 
 pub struct Container {
@@ -6,7 +6,6 @@ pub struct Container {
     bind_group: BindGroupId,
 
     rigid_body: RigidBodyHandle,
-    collider: ColliderHandle,
     size: Vec2,
 }
 
@@ -27,6 +26,9 @@ impl Container {
     ) -> Container {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(position)
+            .gravity_scale(0.0)
+            .angvel(0.2)
+            .can_sleep(false)
             .build();
 
         let builder = ColliderBuilder::cuboid(size.x / 2.0, size.y / 2.0);
@@ -35,13 +37,12 @@ impl Container {
             .friction(0.4)
             .build();
 
-        let (body_handle, collider_handle) = world.insert(rigid_body, collider);
+        let (body_handle, _) = world.insert(rigid_body, collider);
 
         Container {
             variant,
             bind_group,
             rigid_body: body_handle,
-            collider: collider_handle,
             size,
         }
     }
@@ -58,7 +59,7 @@ impl Renderable for Container {
         let body = state.physics_world.bodies.get(self.rigid_body).unwrap();
         let matrix = Mat4::from_scale_rotation_translation(
             self.size.extend(0.0),
-            Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.0),
+            Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, body.rotation().angle()),
             body.translation().extend(0.0)
         ).to_cols_array_2d();
         queue.write_buffer(

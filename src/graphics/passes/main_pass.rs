@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 
-use glam::{Mat3, Mat4, Quat, Vec2, Vec3};
-use image::GenericImageView;
+use glam::Mat4;
 use wgpu::util::DeviceExt;
 
 use crate::State;
 use crate::graphics::resource::ResourceManager;
-use crate::graphics::{Vertex, util};
+use crate::graphics::Vertex;
 use crate::graphics::camera::Camera;
 use crate::graphics::passes::Pass;
 

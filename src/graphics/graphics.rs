@@ -5,6 +5,8 @@ use winit::{
     window::Window,
 };
 
+use egui_wgpu::{Renderer as UiRenderer, RendererOptions};
+
 use crate::{State, graphics::{passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
 
 pub struct Renderer {
@@ -16,6 +18,10 @@ pub struct Renderer {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
     pub resource_manager: ResourceManager,
+
+    pub ui_context: egui::Context,
+    pub ui_state: egui_winit::State,
+    pub ui_renderer: UiRenderer,
 
     passes: Vec<Box<dyn Pass>>,
 }
@@ -67,6 +73,29 @@ impl Renderer {
         passes.push(Box::new(main_pass));
         passes.push(Box::new(debug_pass));
 
+        
+        let ui_context = egui::Context::default();
+
+        let ui_state = egui_winit::State::new(
+            ui_context.clone(),
+            ui_context.viewport_id(),
+            &window,
+            Some(window.scale_factor() as f32),
+            None,
+            None
+        );
+
+        let ui_renderer = UiRenderer::new(
+            &device,
+            surface_format,
+            RendererOptions {
+                msaa_samples: 0,
+                depth_stencil_format: None,
+                dithering: true,
+                predictable_texture_filtering: false,
+            },
+        );
+
         let state = Renderer {
             instance,
             window,
@@ -77,6 +106,10 @@ impl Renderer {
             surface_format,
             resource_manager,
 
+            ui_context,
+            ui_state,
+            ui_renderer,
+
             passes,
         };
 
@@ -86,8 +119,8 @@ impl Renderer {
         state
     }
 
-    pub fn get_window(&self) -> &Window {
-        &self.window
+    pub fn get_window(&self) -> Arc<Window> {
+        self.window.clone()
     }
 
     pub fn configure_surface(&self) {
@@ -113,7 +146,7 @@ impl Renderer {
         self.configure_surface();
     }
 
-    pub fn render(&mut self, state: &mut State) {
+    pub fn render(&mut self, state: &mut State, full_output: egui::FullOutput) {
         // Create texture view.
         // NOTE: We must handle Timeout because the surface may be unavailable
         // (e.g., when the window is occluded on macOS).
@@ -149,6 +182,28 @@ impl Renderer {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
+        let tris = self
+            .ui_context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
+        for (id, deltas) in &full_output.textures_delta.set {
+            for delta in deltas {
+                self.ui_renderer
+                    .update_texture(&self.device, &self.queue, *id, delta);
+            }
+        }
+
+        let screen = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.size.width, self.size.height],
+            pixels_per_point: full_output.pixels_per_point,
+        };
+        self.ui_renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &tris,
+            &screen
+        );
+
         // Create the renderpass which will clear the screen.
         let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -165,7 +220,7 @@ impl Renderer {
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
-        });
+        }).forget_lifetime();
 
         // If you wanted to call any drawing commands, they would go here.
         renderpass.set_viewport(
@@ -185,6 +240,8 @@ impl Renderer {
             );
         }
 
+        self.ui_renderer.render(&mut renderpass, &tris, &screen);
+
         // End the renderpass.
         drop(renderpass);
 
@@ -192,5 +249,10 @@ impl Renderer {
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
         self.queue.present(surface_texture);
+
+        for id in &full_output.textures_delta.free {
+            self.ui_renderer.free_texture(id);
+        }
     }
+
 }

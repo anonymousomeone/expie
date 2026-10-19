@@ -5,6 +5,7 @@ use crate::{expoid::container::Container, graphics::{Renderable, Renderer}};
 
 use std::sync::Arc;
 
+use egui::FullOutput;
 use rapier2d::prelude::*;
 use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages, TextureSampleType, TextureViewDimension};
 use winit::{
@@ -38,7 +39,7 @@ impl App {
         //     ],
         // );
 
-        let shape = ColliderBuilder::cuboid(0.1, 0.1);
+        let shape = ColliderBuilder::cuboid(0.4, 0.1);
 
         let rigid_body_handle = physics_world.insert_body(rigid_body);
         physics_world.insert_collider(shape, Some(rigid_body_handle));
@@ -52,6 +53,12 @@ impl App {
             renderer: None,
             state,
         }
+    }
+
+    fn ui(raw_input: egui::RawInput, ctx: &egui::Context, state: &mut State) -> FullOutput {
+        ctx.run_ui(raw_input, |ui| {
+            ui.heading("hello wold");
+        })
     }
 }
 
@@ -72,7 +79,7 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
 
-        window.set_cursor_hittest(false).unwrap();
+        // window.set_cursor_hittest(false).unwrap();
 
         let mut renderer = pollster::block_on(Renderer::new(
             event_loop.owned_display_handle(),
@@ -140,7 +147,7 @@ impl ApplicationHandler for App {
 
         let container_crate = Container::new(
             &mut self.state.physics_world,
-            Vec2::new(0.0, 0.0),
+            Vec2::new(0.5, 0.0),
             Vec2::new(0.2, 0.2),
             bind_group,
             expoid::container::ContainerVariant::Container
@@ -155,6 +162,18 @@ impl ApplicationHandler for App {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let renderer = self.renderer.as_mut().unwrap();
+        let window = renderer.get_window();
+
+        let response = renderer.ui_state.on_window_event(&window, &event);
+        if response.repaint {
+            window.request_redraw();
+        }
+        if response.consumed {
+            if !matches!(event, WindowEvent::RedrawRequested) {
+                return;
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
@@ -162,7 +181,12 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.state.physics_world.step();
-                renderer.render(&mut self.state);
+                
+                let ctx = &renderer.ui_context;
+                let raw_input = renderer.ui_state.take_egui_input(&renderer.get_window());
+                
+                let output = App::ui(raw_input, ctx, &mut self.state);
+                renderer.render(&mut self.state, output);
 
                 // Emits a new redraw requested event.
                 renderer.get_window().request_redraw();

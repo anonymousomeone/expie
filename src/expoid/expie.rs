@@ -1,22 +1,25 @@
 use rapier2d::prelude::*;
 
 use crate::State;
-use crate::expoid::Transform;
 use crate::graphics::Renderable;
 
 pub struct Expie {
-    pub limbs: Vec<Limb>,
+    pub parts: Vec<Part>,
 
-    pub rigidbody: RigidBody
+    pub rigidbody: RigidBodyHandle
 }
 
 impl Expie {
-    pub fn new(physics_world: PhysicsWorld) -> Expie {
+    pub fn new(physics_world: &mut PhysicsWorld) -> Expie {
         let rigidbody = RigidBodyBuilder::kinematic_position_based()
             .build();
+
+        let capsule = ColliderBuilder::capsule_y(0.6, 0.3);
+
+        let (handle, _) = physics_world.insert(rigidbody, capsule);
         Expie {
-            limbs: Vec::new(),
-            rigidbody,
+            parts: Vec::new(),
+            rigidbody: handle,
         }
     }
 }
@@ -41,6 +44,6 @@ impl Renderable for Expie {
     }
 }
 
-pub struct Limb {
-    pub transform: Transform
+pub struct Part {
+    // pub coll
 }
