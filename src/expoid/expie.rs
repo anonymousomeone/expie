@@ -34,14 +34,6 @@ impl Renderable for Expie {
     ) {
         todo!()
     }
-
-    fn load_textures(&self, queue: wgpu::Queue) {
-        todo!()
-    }
-
-    fn drop_textures(&self, queue: wgpu::Queue) {
-        todo!()
-    }
 }
 
 pub struct Part {

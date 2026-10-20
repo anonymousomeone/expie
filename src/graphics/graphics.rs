@@ -7,7 +7,7 @@ use winit::{
 
 use egui_wgpu::{Renderer as UiRenderer, RendererOptions};
 
-use crate::{State, graphics::{passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
+use crate::{State, graphics::{camera::Camera, passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -17,6 +17,7 @@ pub struct Renderer {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
+    pub camera: Camera,
     pub resource_manager: ResourceManager,
 
     pub ui_context: egui::Context,
@@ -52,6 +53,8 @@ impl Renderer {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
+        let camera = Camera::new(&device, size);
+
         let resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
         let mut passes: Vec<Box<dyn Pass>> = Vec::new();
@@ -60,14 +63,14 @@ impl Renderer {
             device.clone(),
             queue.clone(),
             swapchain_format.into(),
-            size.clone()
+            &camera.bind_group_layout
         );
 
         let debug_pass = DebugPass::new(
             device.clone(),
             queue.clone(),
             swapchain_format.into(),
-            size.clone(),
+            &camera.bind_group_layout
         );
 
         passes.push(Box::new(main_pass));
@@ -104,6 +107,7 @@ impl Renderer {
             size,
             surface,
             surface_format,
+            camera,
             resource_manager,
 
             ui_context,
@@ -141,6 +145,7 @@ impl Renderer {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;
+        self.camera.viewport_size = new_size;
 
         // reconfigure the surface
         self.configure_surface();
@@ -196,7 +201,8 @@ impl Renderer {
             size_in_pixels: [self.size.width, self.size.height],
             pixels_per_point: full_output.pixels_per_point,
         };
-        self.ui_renderer.update_buffers(
+
+        let user_cmd_bufs = self.ui_renderer.update_buffers(
             &self.device,
             &self.queue,
             &mut encoder,
@@ -236,7 +242,8 @@ impl Renderer {
             pass.render(
                 &self.resource_manager,
                 &mut renderpass, 
-                state
+                state,
+                &self.camera
             );
         }
 
@@ -246,7 +253,7 @@ impl Renderer {
         drop(renderpass);
 
         // Submit the command in the queue to execute
-        self.queue.submit([encoder.finish()]);
+        self.queue.submit(user_cmd_bufs.into_iter().chain([encoder.finish()]));
         self.window.pre_present_notify();
         self.queue.present(surface_texture);
 

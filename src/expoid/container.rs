@@ -71,14 +71,4 @@ impl Renderable for Container {
         pass.set_bind_group(2, resources.get_bind_group(self.bind_group), &[]);
         pass.draw(0..6, 0..1);
     }
-
-
-    fn load_textures(&self, queue: wgpu::Queue) {
-        todo!()
-    }
-
-    fn drop_textures(&self, queue: wgpu::Queue) {
-        todo!()
-    }
-    
 }

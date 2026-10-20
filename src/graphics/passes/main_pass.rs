@@ -23,8 +23,6 @@ pub struct MainPass {
     device: wgpu::Device,
     queue: wgpu::Queue,
     render_pipeline: wgpu::RenderPipeline,
-    size: winit::dpi::PhysicalSize<u32>,
-    camera: Camera,
 
     vertex_buffer: wgpu::Buffer,
     model_buffer: wgpu::Buffer,
@@ -36,7 +34,7 @@ impl MainPass {
         device: wgpu::Device, 
         queue: wgpu::Queue,
         target: wgpu::ColorTargetState,
-        size: winit::dpi::PhysicalSize<u32>,
+        camera_bind_group: &wgpu::BindGroupLayout
     ) -> MainPass {
         let model_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -105,11 +103,10 @@ impl MainPass {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("main_shader.wgsl"))),
         });        
         
-        let camera = Camera::new(&device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[
-                Some(&camera.bind_group_layout),
+                Some(camera_bind_group),
                 Some(&model_bind_group_layout),
                 Some(&texture_bind_group_layout),
             ],
@@ -160,8 +157,6 @@ impl MainPass {
             device,
             queue,
             render_pipeline,
-            camera,
-            size,
 
             vertex_buffer,
             model_buffer,
@@ -176,7 +171,8 @@ impl Pass for MainPass {
         &mut self,
         resource_manager: &ResourceManager,
         renderpass: &mut wgpu::RenderPass,
-        state: &mut State
+        state: &mut State,
+        camera: &Camera
     ) {
         renderpass.set_pipeline(&self.render_pipeline);
 
@@ -184,16 +180,16 @@ impl Pass for MainPass {
         
         // println!("{:#?}", self.debug_renderer_backend.lines);
         
-        let aspect_ratio: f32 = self.size.width as f32 / self.size.height as f32;
-        let matrix = self.camera.to_matrix(aspect_ratio).to_cols_array_2d();
+        let aspect_ratio: f32 = camera.viewport_size.width as f32 / camera.viewport_size.height as f32;
+        let matrix = camera.to_matrix(aspect_ratio).to_cols_array_2d();
         self.queue.write_buffer(
-            &self.camera.buffer, 
+            &camera.buffer, 
             0, 
             bytemuck::bytes_of(&matrix)
         );
 
         renderpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        renderpass.set_bind_group(0, Some(&self.camera.bind_group), &[]);
+        renderpass.set_bind_group(0, Some(&camera.bind_group), &[]);
         renderpass.set_bind_group(1, Some(&self.model_bind_group), &[]);
 
         for entity in &state.entities {
@@ -205,6 +201,5 @@ impl Pass for MainPass {
                 &self.model_buffer
             );
         }
-
     }
 }

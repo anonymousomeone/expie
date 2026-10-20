@@ -20,9 +20,6 @@ pub trait Renderable {
         pass: &mut RenderPass,
         model_buffer: &Buffer
     );
-
-    fn load_textures(&self, queue: Queue);
-    fn drop_textures(&self, queue: Queue);
 }
 
 pub struct LineCollector {
