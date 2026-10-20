@@ -66,9 +66,9 @@ impl RenderCamera {
         let height = 1.0 / self.zoom;
         let width = height * aspect_ratio;
         let projection = glam::camera::rh::proj::directx::orthographic(
-            0.0,
+            -width,
             width,
-            0.0,
+            -height,
             height,
             -1.0,
             1.0

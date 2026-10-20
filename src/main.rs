@@ -2,8 +2,9 @@ mod graphics;
 mod expoid;
 mod editor;
 mod camera;
+mod input;
 
-use crate::{camera::Camera, editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer}};
+use crate::{camera::Camera, editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer}, input::InputHelper};
 
 use std::{sync::Arc, time::{Duration, Instant}};
 
@@ -19,6 +20,7 @@ struct App {
     renderer: Option<Renderer>,
     state: State,
     editor: Editor,
+    input: InputHelper,
 
     pub last_frame_time: Instant,
     pub delta_time: Duration,
@@ -28,6 +30,7 @@ pub struct State {
     physics_world: PhysicsWorld,
     entities: Vec<Box<dyn Renderable>>,
     camera: Camera,
+    delta_time: f32,
 }
 
 impl App {
@@ -57,6 +60,7 @@ impl App {
             physics_world,
             entities: Vec::new(),
             camera: Camera::new(),
+            delta_time: 1.0 / 60.0,
         };
 
         let editor = Editor::new();
@@ -65,10 +69,37 @@ impl App {
             renderer: None,
             state,
             editor,
+            input: InputHelper::new(),
 
             last_frame_time: Instant::now(),
             delta_time: Duration::from_secs_f64(1.0 / 60.0),
         }
+    }
+
+    fn logic(input: &InputHelper, state: &mut State) {
+        const CAMERA_SPEED: f32 = 5.0; // m/s
+        const ZOOM_SPEED: f32 = 1.0;
+
+        let mut movement_vec = glam::Vec2::new(0.0, 0.0);
+
+        if input.key_held(KeyCode::KeyW) {
+            movement_vec += glam::Vec2::Y;
+        } 
+        if input.key_held(KeyCode::KeyA) {
+            movement_vec += glam::Vec2::NEG_X;
+        } 
+        if input.key_held(KeyCode::KeyS) {
+            movement_vec += glam::Vec2::NEG_Y;
+        } 
+        if input.key_held(KeyCode::KeyD) {
+            movement_vec += glam::Vec2::X;
+        }
+
+        let movement_vec = movement_vec.normalize_or_zero() * state.delta_time * CAMERA_SPEED;
+        state.camera.position += movement_vec;
+
+        let zoom_delta = input.scroll_diff().1 * state.delta_time * ZOOM_SPEED;
+        state.camera.zoom += zoom_delta;
     }
 
     fn ui(
@@ -202,6 +233,8 @@ impl ApplicationHandler for App {
             }
         }
 
+        self.input.process_window_event(&event);
+
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
@@ -211,6 +244,9 @@ impl ApplicationHandler for App {
                 let frame_start_time = Instant::now();
                 let time_since_last_frame = frame_start_time.duration_since(self.last_frame_time);
                 self.delta_time = time_since_last_frame;
+                self.state.delta_time = time_since_last_frame.as_secs_f32();
+
+                App::logic(&self.input, &mut self.state);
         
                 self.state.physics_world.step();
                 
@@ -223,8 +259,6 @@ impl ApplicationHandler for App {
 
                 renderer.render(&mut self.state, output);
 
-                // Emits a new redraw requested event.
-                renderer.get_window().request_redraw();
                 self.last_frame_time = frame_start_time;
             }
             WindowEvent::Resized(size) => {
@@ -232,37 +266,23 @@ impl ApplicationHandler for App {
                 // here as this event is always followed up by redraw request.
                 renderer.resize(size);
             }
-            WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
-                let mut movement_vec = glam::Vec2::new(0.0, 0.0);
-
-                match event.physical_key {
-                    PhysicalKey::Code(key_code) => {
-                        match key_code {
-                            KeyCode::KeyW => {
-                                movement_vec += glam::Vec2::Y;
-                            },
-                            KeyCode::KeyA => {
-                                movement_vec += glam::Vec2::NEG_X;
-                            },
-                            KeyCode::KeyS => {
-                                movement_vec += glam::Vec2::NEG_Y;
-                            },
-                            KeyCode::KeyD => {
-                                movement_vec += glam::Vec2::X;
-                            },
-                            _ => {},
-                        }
-                    },
-                    _ => {},
-                }
-
-                let movement_vec = movement_vec.normalize_or_zero() * self.delta_time.as_secs_f32();
-
-                self.state.camera.position += movement_vec;
-            }
 
             _ => (),
         }
+    }
+
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, _cause: winit::event::StartCause) {
+        self.input.step();
+    }
+
+    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: winit::event::DeviceId, event: winit::event::DeviceEvent) {
+        self.input.process_device_event(&event);
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        // Input handling
+        self.input.end_step();
+        self.renderer.as_ref().unwrap().get_window().request_redraw();
     }
 }
 
