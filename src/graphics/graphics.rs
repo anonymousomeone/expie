@@ -7,7 +7,7 @@ use winit::{
 
 use egui_wgpu::{Renderer as UiRenderer, RendererOptions};
 
-use crate::{State, graphics::{camera::Camera, passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
+use crate::{State, graphics::{camera::RenderCamera, passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -17,12 +17,14 @@ pub struct Renderer {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
-    pub camera: Camera,
+    pub camera: RenderCamera,
     pub resource_manager: ResourceManager,
 
     pub ui_context: egui::Context,
     pub ui_state: egui_winit::State,
     pub ui_renderer: UiRenderer,
+
+    pub frametime: f32,
 
     passes: Vec<Box<dyn Pass>>,
 }
@@ -53,7 +55,7 @@ impl Renderer {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let camera = Camera::new(&device, size);
+        let camera = RenderCamera::new(&device, size);
 
         let resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
@@ -113,6 +115,8 @@ impl Renderer {
             ui_context,
             ui_state,
             ui_renderer,
+
+            frametime: 0.0,
 
             passes,
         };

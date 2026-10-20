@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use crate::State;
 use crate::graphics::resource::ResourceManager;
 use crate::graphics::Vertex;
-use crate::graphics::camera::Camera;
+use crate::graphics::camera::RenderCamera;
 use crate::graphics::passes::Pass;
 
 const VERTICES: &[Vertex] = &[
@@ -172,7 +172,7 @@ impl Pass for MainPass {
         resource_manager: &ResourceManager,
         renderpass: &mut wgpu::RenderPass,
         state: &mut State,
-        camera: &Camera
+        camera: &RenderCamera
     ) {
         renderpass.set_pipeline(&self.render_pipeline);
 

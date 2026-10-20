@@ -2,7 +2,7 @@ use glam::{Mat4, Vec2};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-pub struct Camera {
+pub struct RenderCamera {
     pub position: Vec2,
     pub zoom: f32,
     
@@ -12,8 +12,8 @@ pub struct Camera {
     pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
-impl Camera {
-    pub fn new(device: &wgpu::Device, size: PhysicalSize<u32>) -> Camera {
+impl RenderCamera {
+    pub fn new(device: &wgpu::Device, size: PhysicalSize<u32>) -> RenderCamera {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -49,8 +49,8 @@ impl Camera {
             label: Some("camera_bind_group"),
         });
 
-        Camera {
-            position: Vec2::new(0.5, 0.5),
+        RenderCamera {
+            position: Vec2::new(0.0, 0.0),
             zoom: 0.25,
 
             viewport_size: size,
@@ -61,7 +61,7 @@ impl Camera {
     }
 
     pub fn to_matrix(&self, aspect_ratio: f32) -> Mat4 {
-        let translation = Mat4::IDENTITY * Mat4::from_translation(self.position.extend(0.0));
+        let translation = Mat4::IDENTITY * Mat4::from_translation(self.position.extend(0.0)).inverse();
 
         let height = 1.0 / self.zoom;
         let width = height * aspect_ratio;
@@ -76,32 +76,4 @@ impl Camera {
 
         return projection * translation;
     }
-
-    pub fn to_world_2d(&self, pos: Vec2) -> Vec2 {
-        let height = 1.0 / self.zoom;
-        let width = height * (self.viewport_size.width as f32 / self.viewport_size.height as f32);
-
-        let uv = Vec2::new(
-            pos.x / self.viewport_size.width as f32,
-            1.0 - pos.y / self.viewport_size.height as f32, // flip Y
-        );
-
-        uv * Vec2::new(width, height) - self.position
-    }
-}
-
-pub struct CameraController {
-    pub controller_type: ControllerType
-}
-
-impl CameraController {
-    pub fn new(controller_type: ControllerType) -> CameraController {
-        CameraController {
-            controller_type,
-        }
-    }
-}
-
-pub enum ControllerType {
-    Freecam,
 }

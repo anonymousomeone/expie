@@ -1,28 +1,33 @@
 mod graphics;
 mod expoid;
 mod editor;
+mod camera;
 
-use crate::{editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer}};
+use crate::{camera::Camera, editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer}};
 
-use std::sync::Arc;
+use std::{sync::Arc, time::{Duration, Instant}};
 
 use egui::FullOutput;
 use image::GenericImageView;
 use rapier2d::prelude::*;
 use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages, TextureSampleType, TextureViewDimension};
 use winit::{
-    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, window::{Icon, WindowAttributes, WindowId, WindowLevel},
+    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, keyboard::{KeyCode, PhysicalKey}, window::{Icon, WindowAttributes, WindowId, WindowLevel},
 };
 
 struct App {
     renderer: Option<Renderer>,
     state: State,
+    editor: Editor,
+
+    pub last_frame_time: Instant,
+    pub delta_time: Duration,
 }
 
 pub struct State {
     physics_world: PhysicsWorld,
     entities: Vec<Box<dyn Renderable>>,
-    editor: Editor,
+    camera: Camera,
 }
 
 impl App {
@@ -47,24 +52,34 @@ impl App {
         let rigid_body_handle = physics_world.insert_body(rigid_body);
         physics_world.insert_collider(shape, Some(rigid_body_handle));
 
-        let editor = Editor::new();
         
         let state = State {
             physics_world,
             entities: Vec::new(),
-            editor,
+            camera: Camera::new(),
         };
 
+        let editor = Editor::new();
+        
         App {
             renderer: None,
             state,
+            editor,
+
+            last_frame_time: Instant::now(),
+            delta_time: Duration::from_secs_f64(1.0 / 60.0),
         }
     }
 
-    fn ui(raw_input: egui::RawInput, ctx: &egui::Context, state: &mut State) -> FullOutput {
+    fn ui(
+        editor: &mut Editor,
+        raw_input: egui::RawInput,
+        ctx: &egui::Context,
+        state: &mut State
+    ) -> FullOutput {
         ctx.run_ui(raw_input, |ui| {
-            ui.heading("hello wold");
-            state.editor.ui(ctx, ui);
+            // ui.heading("hello wold");
+            editor.ui(ctx, ui, state);
         })
     }
 }
@@ -193,22 +208,59 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let frame_start_time = Instant::now();
+                let time_since_last_frame = frame_start_time.duration_since(self.last_frame_time);
+                self.delta_time = time_since_last_frame;
+        
                 self.state.physics_world.step();
                 
                 let ctx = &renderer.ui_context;
                 let raw_input = renderer.ui_state.take_egui_input(&renderer.get_window());
                 
-                let output = App::ui(raw_input, ctx, &mut self.state);
+                let output = App::ui(&mut self.editor, raw_input, ctx, &mut self.state);
+                renderer.camera.position = self.state.camera.position;
+                renderer.camera.zoom = self.state.camera.zoom;
+
                 renderer.render(&mut self.state, output);
 
                 // Emits a new redraw requested event.
                 renderer.get_window().request_redraw();
+                self.last_frame_time = frame_start_time;
             }
             WindowEvent::Resized(size) => {
                 // Reconfigures the size of the surface. We do not re-render
                 // here as this event is always followed up by redraw request.
                 renderer.resize(size);
             }
+            WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
+                let mut movement_vec = glam::Vec2::new(0.0, 0.0);
+
+                match event.physical_key {
+                    PhysicalKey::Code(key_code) => {
+                        match key_code {
+                            KeyCode::KeyW => {
+                                movement_vec += glam::Vec2::Y;
+                            },
+                            KeyCode::KeyA => {
+                                movement_vec += glam::Vec2::NEG_X;
+                            },
+                            KeyCode::KeyS => {
+                                movement_vec += glam::Vec2::NEG_Y;
+                            },
+                            KeyCode::KeyD => {
+                                movement_vec += glam::Vec2::X;
+                            },
+                            _ => {},
+                        }
+                    },
+                    _ => {},
+                }
+
+                let movement_vec = movement_vec.normalize_or_zero() * self.delta_time.as_secs_f32();
+
+                self.state.camera.position += movement_vec;
+            }
+
             _ => (),
         }
     }

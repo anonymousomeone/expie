@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use crate::State;
 use crate::graphics::resource::ResourceManager;
 use crate::graphics::{LineCollector, Point};
-use crate::graphics::camera::Camera;
+use crate::graphics::camera::RenderCamera;
 use crate::graphics::passes::Pass;
 
 pub struct DebugPass {
@@ -96,7 +96,7 @@ impl Pass for DebugPass {
         _resource_manager: &ResourceManager,
         renderpass: &mut wgpu::RenderPass,
         state: &mut State,
-        camera: &Camera
+        camera: &RenderCamera
     ) {
         let world = &state.physics_world;
         renderpass.set_pipeline(&self.render_pipeline);

@@ -1,4 +1,4 @@
-use crate::{State, graphics::{camera::Camera, resource::ResourceManager}};
+use crate::{State, graphics::{camera::RenderCamera, resource::ResourceManager}};
 
 pub mod debug_pass;
 pub mod main_pass;
@@ -9,6 +9,6 @@ pub trait Pass {
         resource_manager: &ResourceManager,
         renderpass: &mut wgpu::RenderPass,
         state: &mut State,
-        camera: &Camera,
+        camera: &RenderCamera,
     );
 }
