@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use glam::Vec2;
 use winit::{
     event_loop::OwnedDisplayHandle,
     window::Window,
@@ -23,8 +24,6 @@ pub struct Renderer {
     pub ui_context: egui::Context,
     pub ui_state: egui_winit::State,
     pub ui_renderer: UiRenderer,
-
-    pub frametime: f32,
 
     passes: Vec<Box<dyn Pass>>,
 }
@@ -115,8 +114,6 @@ impl Renderer {
             ui_context,
             ui_state,
             ui_renderer,
-
-            frametime: 0.0,
 
             passes,
         };
@@ -266,4 +263,8 @@ impl Renderer {
         }
     }
 
+    pub fn screen_size(&self) -> Vec2 {
+        let size = self.size;
+        return Vec2::new(size.width as f32, size.height as f32);
+    }
 }

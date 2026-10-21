@@ -15,16 +15,16 @@ impl Camera {
         }
     }
 
-    pub fn to_world_2d(&self, pos: Vec2, screen_size: Vec2) -> Vec2 {
+    pub fn screen_to_world_2d(&self, pos: Vec2, screen_size: Vec2) -> Vec2 {
         let height = 1.0 / self.zoom;
-        let width = height * (screen_size.x as f32 / screen_size.y as f32);
+        let width = height * (screen_size.x / screen_size.y);
 
-        let uv = Vec2::new(
-            pos.x / screen_size.x as f32,
-            1.0 - pos.y / screen_size.y as f32, // flip Y
+        let ndc = Vec2::new(
+            (pos.x / screen_size.x) * 2.0 - 1.0,
+            1.0 - (pos.y / screen_size.y) * 2.0,
         );
 
-        uv * Vec2::new(width, height) - self.position
+        ndc * Vec2::new(width, height) + self.position
     }
 }
 

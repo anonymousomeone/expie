@@ -29,6 +29,8 @@ struct App {
 pub struct State {
     physics_world: PhysicsWorld,
     entities: Vec<Box<dyn Renderable>>,
+    cursor_pos: Vec2,
+    cursor_pos_world: Vec2,
     camera: Camera,
     delta_time: f32,
 }
@@ -59,6 +61,8 @@ impl App {
         let state = State {
             physics_world,
             entities: Vec::new(),
+            cursor_pos: Vec2::ZERO,
+            cursor_pos_world: Vec2::ZERO,
             camera: Camera::new(),
             delta_time: 1.0 / 60.0,
         };
@@ -80,19 +84,19 @@ impl App {
         const CAMERA_SPEED: f32 = 5.0; // m/s
         const ZOOM_SPEED: f32 = 1.0;
 
-        let mut movement_vec = glam::Vec2::new(0.0, 0.0);
+        let mut movement_vec = Vec2::new(0.0, 0.0);
 
         if input.key_held(KeyCode::KeyW) {
-            movement_vec += glam::Vec2::Y;
+            movement_vec += Vec2::Y;
         } 
         if input.key_held(KeyCode::KeyA) {
-            movement_vec += glam::Vec2::NEG_X;
+            movement_vec += Vec2::NEG_X;
         } 
         if input.key_held(KeyCode::KeyS) {
-            movement_vec += glam::Vec2::NEG_Y;
+            movement_vec += Vec2::NEG_Y;
         } 
         if input.key_held(KeyCode::KeyD) {
-            movement_vec += glam::Vec2::X;
+            movement_vec += Vec2::X;
         }
 
         let movement_vec = movement_vec.normalize_or_zero() * state.delta_time * CAMERA_SPEED;
@@ -100,6 +104,16 @@ impl App {
 
         let zoom_delta = input.scroll_diff().1 * state.delta_time * ZOOM_SPEED;
         state.camera.zoom += zoom_delta;
+
+        let rbody = RigidBodyBuilder::dynamic()
+            .translation(state.cursor_pos_world)
+            .build();
+
+        let collider = ColliderBuilder::ball(0.2)
+            .density(1000.0)
+            .build();
+
+        state.physics_world.insert(rbody, collider);
     }
 
     fn ui(
@@ -241,23 +255,33 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let state = &mut self.state;
+
                 let frame_start_time = Instant::now();
                 let time_since_last_frame = frame_start_time.duration_since(self.last_frame_time);
                 self.delta_time = time_since_last_frame;
-                self.state.delta_time = time_since_last_frame.as_secs_f32();
+                state.delta_time = time_since_last_frame.as_secs_f32();
 
-                App::logic(&self.input, &mut self.state);
+                match self.input.cursor() {
+                    Some((x, y)) => state.cursor_pos = Vec2::new(x, y),
+                    None => {},
+                }
+    
+                state.cursor_pos_world =
+                    state.camera.screen_to_world_2d(state.cursor_pos, renderer.screen_size());
+
+                App::logic(&self.input, state);
         
-                self.state.physics_world.step();
+                state.physics_world.step();
                 
                 let ctx = &renderer.ui_context;
                 let raw_input = renderer.ui_state.take_egui_input(&renderer.get_window());
                 
-                let output = App::ui(&mut self.editor, raw_input, ctx, &mut self.state);
-                renderer.camera.position = self.state.camera.position;
-                renderer.camera.zoom = self.state.camera.zoom;
+                let output = App::ui(&mut self.editor, raw_input, ctx, state);
+                renderer.camera.position = state.camera.position;
+                renderer.camera.zoom = state.camera.zoom;
 
-                renderer.render(&mut self.state, output);
+                renderer.render(state, output);
 
                 self.last_frame_time = frame_start_time;
             }
