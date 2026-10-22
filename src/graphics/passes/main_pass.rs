@@ -192,10 +192,10 @@ impl Pass for MainPass {
         renderpass.set_bind_group(0, Some(&camera.bind_group), &[]);
         renderpass.set_bind_group(1, Some(&self.model_bind_group), &[]);
 
-        for entity in &state.entities {
+        for entity in &mut state.entities {
             entity.render(
                 &self.queue,
-                state,
+                &state.physics_world,
                 resource_manager,
                 renderpass,
                 &self.model_buffer

@@ -4,7 +4,7 @@ mod editor;
 mod camera;
 mod input;
 
-use crate::{camera::Camera, editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer}, input::InputHelper};
+use crate::{camera::Camera, editor::editor::Editor, expoid::container::Container, graphics::{Renderable, Renderer, sprite::Sprite}, input::InputHelper};
 
 use std::{sync::Arc, time::{Duration, Instant}};
 
@@ -13,7 +13,7 @@ use image::GenericImageView;
 use rapier2d::prelude::*;
 use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages, TextureSampleType, TextureViewDimension};
 use winit::{
-    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::WindowEvent, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, keyboard::{KeyCode, PhysicalKey}, window::{Icon, WindowAttributes, WindowId, WindowLevel},
+    application::ApplicationHandler, dpi::{PhysicalPosition, PhysicalSize}, event::{MouseButton, WindowEvent}, event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, keyboard::KeyCode, window::{Icon, WindowAttributes, WindowId, WindowLevel},
 };
 
 struct App {
@@ -81,8 +81,8 @@ impl App {
     }
 
     fn logic(input: &InputHelper, state: &mut State) {
-        const CAMERA_SPEED: f32 = 5.0; // m/s
-        const ZOOM_SPEED: f32 = 1.0;
+        const CAMERA_SPEED: f32 = 5.0;
+        const ZOOM_SPEED: f32 = 5.0;
 
         let mut movement_vec = Vec2::new(0.0, 0.0);
 
@@ -99,21 +99,24 @@ impl App {
             movement_vec += Vec2::X;
         }
 
-        let movement_vec = movement_vec.normalize_or_zero() * state.delta_time * CAMERA_SPEED;
+        let movement_vec = (movement_vec.normalize_or_zero() * state.delta_time * CAMERA_SPEED) / state.camera.zoom;
         state.camera.position += movement_vec;
 
         let zoom_delta = input.scroll_diff().1 * state.delta_time * ZOOM_SPEED;
-        state.camera.zoom += zoom_delta;
+        state.camera.zoom = (state.camera.zoom + zoom_delta * state.camera.zoom).clamp(0.01, 10.0);
 
-        let rbody = RigidBodyBuilder::dynamic()
-            .translation(state.cursor_pos_world)
-            .build();
+        if input.mouse_pressed(MouseButton::Left) {
+            let rbody = RigidBodyBuilder::dynamic()
+                .translation(state.cursor_pos_world)
+                .build();
+    
+            let collider = ColliderBuilder::ball(0.1)
+                .density(1000.0)
+                .build();
+            
+            state.physics_world.insert(rbody, collider);
+        }
 
-        let collider = ColliderBuilder::ball(0.2)
-            .density(1000.0)
-            .build();
-
-        state.physics_world.insert(rbody, collider);
     }
 
     fn ui(
@@ -218,11 +221,13 @@ impl ApplicationHandler for App {
         ];
         let bind_group = resources.new_bind_group(layout, entries, None);
 
+        let container_sprite = Sprite::new(bind_group);
+
         let container_crate = Container::new(
             &mut self.state.physics_world,
             Vec2::new(0.5, 0.0),
             Vec2::new(0.2, 0.2),
-            bind_group,
+            container_sprite,
             expoid::container::ContainerVariant::Container
         );
 

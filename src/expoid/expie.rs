@@ -25,9 +25,9 @@ impl Expie {
 }
 
 impl Renderable for Expie {
-    fn render(&self,
+    fn render(&mut self,
         queue: &wgpu::Queue,
-        state: &State,
+        physics_world: &PhysicsWorld,
         resources: &crate::graphics::resource::ResourceManager,
         pass: &mut wgpu::RenderPass,
         model_buffer: &wgpu::Buffer

@@ -2,20 +2,21 @@ pub mod graphics;
 pub mod camera;
 pub mod passes;
 pub mod resource;
+pub mod sprite;
 mod util;
 
 use bytemuck::{Pod, Zeroable};
 pub use graphics::Renderer;
-use rapier2d::{math::Vector, pipeline::{DebugColor, DebugRenderBackend, DebugRenderObject}};
+use rapier2d::{math::Vector, pipeline::{DebugColor, DebugRenderBackend, DebugRenderObject, PhysicsWorld}};
 
 use wgpu::{Buffer, Queue, RenderPass};
 
-use crate::{State, graphics::resource::ResourceManager};
+use crate::graphics::resource::ResourceManager;
 
 pub trait Renderable {
-    fn render(&self,
+    fn render(&mut self,
         queue: &Queue,
-        state: &State,
+        physics_world: &PhysicsWorld,
         resources: &ResourceManager,
         pass: &mut RenderPass,
         model_buffer: &Buffer

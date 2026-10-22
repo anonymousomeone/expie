@@ -1,5 +1,4 @@
-use glam::{Mat4, Vec2};
-use winit::dpi::PhysicalSize;
+use glam::Vec2;
 
 pub struct Camera {
     pub position: Vec2,

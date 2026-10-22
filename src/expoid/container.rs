@@ -1,9 +1,9 @@
-use crate::{State, graphics::{Renderable, resource::{BindGroupId, ResourceManager}}};
-use rapier2d::{glamx::{EulerRot, Mat4, Quat}, prelude::*};
+use crate::{graphics::{Renderable, resource::ResourceManager, sprite::Sprite}};
+use rapier2d::prelude::*;
 
 pub struct Container {
     pub variant: ContainerVariant,
-    bind_group: BindGroupId,
+    sprite: Sprite,
 
     rigid_body: RigidBodyHandle,
     size: Vec2,
@@ -21,7 +21,7 @@ impl Container {
         world: &mut PhysicsWorld,
         position: Vec2,
         size: Vec2,
-        bind_group: BindGroupId,
+        sprite: Sprite,
         variant: ContainerVariant,
     ) -> Container {
         let rigid_body = RigidBodyBuilder::dynamic()
@@ -41,7 +41,7 @@ impl Container {
 
         Container {
             variant,
-            bind_group,
+            sprite,
             rigid_body: body_handle,
             size,
         }
@@ -49,26 +49,15 @@ impl Container {
 }
 
 impl Renderable for Container {
-    fn render(&self,
+    fn render(&mut self,
         queue: &wgpu::Queue,
-        state: &State,
+        physics_world: &PhysicsWorld,
         resources: &ResourceManager,
         pass: &mut wgpu::RenderPass,
         model_buffer: &wgpu::Buffer
     ) {
-        let body = state.physics_world.bodies.get(self.rigid_body).unwrap();
-        let matrix = Mat4::from_scale_rotation_translation(
-            self.size.extend(0.0),
-            Quat::from_euler(EulerRot::XYZ, 0.0, 0.0, body.rotation().angle()),
-            body.translation().extend(0.0)
-        ).to_cols_array_2d();
-        queue.write_buffer(
-            model_buffer, 
-            0, 
-            bytemuck::bytes_of(&matrix)
-        );
-
-        pass.set_bind_group(2, resources.get_bind_group(self.bind_group), &[]);
-        pass.draw(0..6, 0..1);
+        let body = physics_world.bodies.get(self.rigid_body).unwrap();
+        self.sprite.update_position(body.position(), self.size);
+        self.sprite.render(queue, resources, pass, model_buffer);
     }
 }
