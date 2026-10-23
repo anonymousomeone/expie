@@ -34,6 +34,10 @@ impl Renderable for Expie {
     ) {
         todo!()
     }
+    
+    fn set_outline(&mut self, outlined: bool) {
+        todo!()
+    }
 }
 
 pub struct Part {

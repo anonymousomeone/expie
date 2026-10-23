@@ -8,7 +8,7 @@ use winit::{
 
 use egui_wgpu::{Renderer as UiRenderer, RendererOptions};
 
-use crate::{State, graphics::{camera::RenderCamera, passes::{Pass, debug_pass::DebugPass, main_pass::MainPass}, resource::ResourceManager}};
+use crate::{State, graphics::{camera::RenderCamera, passes::{Pass, debug_pass::DebugPass, main_pass::MainPass, outline_pass::OutlinePass}, resource::ResourceManager}};
 
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -67,6 +67,13 @@ impl Renderer {
             &camera.bind_group_layout
         );
 
+        let outline_pass = OutlinePass::new(
+            device.clone(),
+            queue.clone(),
+            swapchain_format.into(), 
+            &camera.bind_group_layout
+        );
+
         let debug_pass = DebugPass::new(
             device.clone(),
             queue.clone(),
@@ -75,6 +82,7 @@ impl Renderer {
         );
 
         passes.push(Box::new(main_pass));
+        passes.push(Box::new(outline_pass));
         passes.push(Box::new(debug_pass));
 
         

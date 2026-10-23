@@ -33,6 +33,8 @@ pub struct State {
     cursor_pos_world: Vec2,
     camera: Camera,
     delta_time: f32,
+    stepping: bool,
+    rendering: bool,
 }
 
 impl App {
@@ -65,6 +67,8 @@ impl App {
             cursor_pos_world: Vec2::ZERO,
             camera: Camera::new(),
             delta_time: 1.0 / 60.0,
+            stepping: false,
+            rendering: true,
         };
 
         let editor = Editor::new();
@@ -277,7 +281,9 @@ impl ApplicationHandler for App {
 
                 App::logic(&self.input, state);
         
-                state.physics_world.step();
+                if state.stepping {
+                    state.physics_world.step();
+                }
                 
                 let ctx = &renderer.ui_context;
                 let raw_input = renderer.ui_state.take_egui_input(&renderer.get_window());
@@ -286,7 +292,9 @@ impl ApplicationHandler for App {
                 renderer.camera.position = state.camera.position;
                 renderer.camera.zoom = state.camera.zoom;
 
-                renderer.render(state, output);
+                if state.rendering {
+                    renderer.render(state, output);
+                }
 
                 self.last_frame_time = frame_start_time;
             }

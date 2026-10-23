@@ -7,6 +7,7 @@ pub struct Container {
 
     rigid_body: RigidBodyHandle,
     size: Vec2,
+    outlined: bool,
 }
 
 pub enum ContainerVariant {
@@ -44,6 +45,7 @@ impl Container {
             sprite,
             rigid_body: body_handle,
             size,
+            outlined: false,
         }
     }
 }
@@ -59,5 +61,13 @@ impl Renderable for Container {
         let body = physics_world.bodies.get(self.rigid_body).unwrap();
         self.sprite.update_position(body.position(), self.size);
         self.sprite.render(queue, resources, pass, model_buffer);
+    }
+
+    fn set_outline(&mut self, outlined: bool) {
+        self.outlined = outlined
+    }
+
+    fn is_outlined(&self) -> bool {
+        self.outlined
     }
 }

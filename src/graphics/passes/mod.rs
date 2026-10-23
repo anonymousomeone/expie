@@ -2,6 +2,7 @@ use crate::{State, graphics::{camera::RenderCamera, resource::ResourceManager}};
 
 pub mod debug_pass;
 pub mod main_pass;
+pub mod outline_pass;
 
 pub trait Pass {
     fn render(
